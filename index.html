@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#05060A">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>VoleyStats — Estadísticas en vivo</title>
+<style>
+  :root{
+    --court-navy:#05060A;
+    --court-navy-2:#0A0C11;
+    --court-line:#F5F6F2;
+    --ball-orange:#C9FF3D;
+    --ball-orange-2:#E4FF8C;
+    --ball-yellow:#35C7FF;
+    --electric:#FF3D6E;
+    --ok-green:#3FA34D;
+    --err-red:#FF3D6E;
+    --muted:#767E90;
+    --panel:rgba(15,17,22,.92);
+    --panel-2:rgba(22,25,32,.95);
+    --border:rgba(255,255,255,.07);
+    --border-hi:rgba(201,255,61,.4);
+    --radius:10px;
+    --font-display: Arial, "Helvetica Neue", system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "SF Mono", "Consolas", monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;color:var(--court-line);font-family:var(--font-body);}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(900px 500px at 8% -10%, rgba(201,255,61,.10), transparent 55%),
+      radial-gradient(700px 480px at 105% 0%, rgba(53,199,255,.09), transparent 55%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 42px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 1px, transparent 1px 42px),
+      var(--court-navy);
+    background-attachment:fixed;
+  }
+  ::selection{background:var(--ball-orange);color:#0A0C11;}
+  @keyframes pulseScore{0%{transform:scale(1);} 30%{transform:scale(1.22);} 100%{transform:scale(1);}}
+  @keyframes flashRing{0%{box-shadow:0 0 0 0 rgba(201,255,61,.5);} 100%{box-shadow:0 0 0 18px rgba(201,255,61,0);}}
+  @keyframes riseIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+  @keyframes growBar{from{width:0;}}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;} }
+
+  /* Header */
+  header.app-head{
+    position:sticky; top:0; z-index:50;
+    background:rgba(5,6,10,.92);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    padding:14px 16px 0 16px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; margin-bottom:10px;}
+  .brand .ball{
+    width:30px;height:30px;border-radius:6px;
+    background: var(--ball-orange);
+    box-shadow: 0 0 20px rgba(201,255,61,.5);
+    flex:none; position:relative;
+  }
+  .brand .ball::after{content:"V"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:900; color:#0A0C11; font-size:15px;}
+  .brand h1{
+    font-family:var(--font-display); font-size:20px; letter-spacing:-.3px; margin:0; font-weight:900;
+    color:var(--court-line); text-transform:uppercase;
+  }
+  .brand span.tag{font-size:10.5px; color:var(--muted); display:block; letter-spacing:1px; margin-top:2px; font-family:var(--font-mono); text-transform:uppercase;}
+
+  nav.tabs{display:flex; gap:4px; overflow-x:auto; scrollbar-width:none;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{
+    flex:none; background:none; border:none; color:var(--muted);
+    font-family:var(--font-mono); font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.6px;
+    padding:11px 14px; cursor:pointer; border-radius:8px 8px 0 0;
+    white-space:nowrap; position:relative; transition:color .2s ease, background .2s ease;
+    border-bottom:2px solid transparent;
+  }
+  nav.tabs button:hover{color:var(--court-line);}
+  nav.tabs button.active{color:var(--ball-orange); border-bottom-color:var(--ball-orange); background:rgba(201,255,61,.06);}
+
+  main{padding:18px 16px 8px; max-width:1000px; margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block; animation: riseIn .3s ease both;}
+
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--ball-orange);
+    border-radius:var(--radius);
+    padding:18px; margin-bottom:16px;
+    box-shadow:0 10px 26px rgba(0,0,0,.35);
+    transition:border-color .2s ease;
+  }
+  .card:hover{border-color:var(--border);}
+  .card h2{
+    font-family:var(--font-mono); font-size:11.5px; text-transform:uppercase; letter-spacing:1.6px;
+    margin:0 0 14px 0; font-weight:800; color:var(--muted);
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  label{font-size:11px; color:var(--muted); display:block; margin-bottom:5px; letter-spacing:.3px; font-family:var(--font-mono); text-transform:uppercase;}
+  input[type=text], input[type=number], select{
+    background:#0A0C11; border:1px solid var(--border); color:var(--court-line);
+    border-radius:8px; padding:10px 12px; font-size:14px; font-family:var(--font-body);
+    width:100%; transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  input:focus, select:focus{outline:none; border-color:var(--ball-orange); box-shadow:0 0 0 3px rgba(201,255,61,.15);}
+  input::placeholder{color:#454C5C;}
+  button{font-family:var(--font-body); cursor:pointer;}
+  .btn{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--court-line);
+    border-radius:8px; padding:10px 15px; font-size:12.5px; font-weight:700;
+    transition:transform .1s ease, border-color .15s ease, background .15s ease;
+    font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.4px;
+  }
+  .btn:hover{border-color:var(--ball-orange); color:var(--ball-orange);}
+  .btn:active{transform:scale(.96);}
+  .btn.primary{
+    background:var(--ball-orange); border-color:var(--ball-orange); color:#0A0C11;
+    box-shadow:0 6px 18px rgba(201,255,61,.28);
+  }
+  .btn.primary:hover{filter:brightness(1.06); color:#0A0C11;}
+  .btn.ghost{background:transparent;}
+  .btn.danger{border-color:rgba(255,61,110,.5); color:var(--err-red); background:rgba(255,61,110,.08);}
+  .btn.danger:hover{border-color:var(--err-red); background:rgba(255,61,110,.16); color:var(--err-red);}
+  .btn.small{padding:7px 11px; font-size:11px; border-radius:7px;}
+  .btn:disabled{opacity:.35; cursor:not-allowed; transform:none;}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{padding:8px 9px; text-align:center; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-weight:800; text-transform:uppercase; font-size:10px; letter-spacing:.5px; font-family:var(--font-mono);}
+  td:first-child, th:first-child{text-align:left;}
+  td{font-family:var(--font-mono);}
+  tbody tr:hover td{background:rgba(255,255,255,.03);}
+  tr.total-row td{font-weight:800; color:var(--ball-orange); border-top:2px solid var(--border-hi);}
+
+  .roster-item{
+    display:flex; align-items:center; gap:10px; background:var(--panel-2);
+    border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:7px;
+    transition:border-color .15s ease;
+  }
+  .roster-item:hover{border-color:var(--border-hi);}
+  .roster-item .num{
+    font-family:var(--font-mono); font-weight:900; font-size:14px;
+    width:30px; height:30px; border-radius:6px;
+    background:#0A0C11;
+    display:flex; align-items:center; justify-content:center; flex:none;
+    border:1px solid var(--ball-orange); color:var(--ball-orange);
+  }
+  .roster-item .name{flex:1; font-weight:700; font-size:13.5px;}
+  .roster-item .pos{color:var(--ball-yellow); font-size:10px; text-transform:uppercase; letter-spacing:.4px; font-weight:700; font-family:var(--font-mono);}
+
+  /* Scoreboard */
+  .scoreboard{
+    display:flex; align-items:stretch; justify-content:center; gap:12px; margin-bottom:16px;
+  }
+  .score-box{
+    flex:1; max-width:230px; border-radius:var(--radius);
+    padding:16px; text-align:center; position:relative; overflow:hidden;
+    border:1px solid var(--border);
+    background:var(--panel);
+  }
+  .score-box.us{border-top:3px solid var(--ball-orange);}
+  .score-box.them{border-top:3px solid var(--ball-yellow);}
+  .score-box.serving{animation:flashRing 1.4s ease-out 1;}
+  .score-box.serving::before{
+    content:"● AL SAQUE"; position:absolute; top:10px; left:0; right:0; text-align:center;
+    color:var(--ball-orange); font-size:9px; font-weight:900; letter-spacing:1.5px; font-family:var(--font-mono);
+  }
+  .score-box .who{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:16px; font-weight:700; font-family:var(--font-mono);}
+  .score-box .num{font-family:var(--font-mono); font-size:54px; font-weight:900; line-height:1; margin:6px 0;}
+  .score-manual-row{display:flex; align-items:center; justify-content:center; gap:8px;}
+  .manual-btn{width:30px; height:30px; padding:0; border-radius:50%; font-size:16px; font-weight:900; flex:none; line-height:1;}
+
+  .hist-head{display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;}
+  .hist-team{display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-weight:800; font-size:15px;}
+  .hist-score{font-size:26px; color:var(--ball-orange);}
+  .hist-set-title{font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:10px;}
+  .hist-row{display:flex; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:nowrap;}
+  .hist-scroll{display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;}
+  .hist-big{
+    font-family:var(--font-mono); font-weight:900; font-size:18px; width:38px; height:38px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; flex:none; margin-right:6px;
+  }
+  .hist-big.us{background:var(--ball-orange); color:#0A0C11;}
+  .hist-big.them{background:var(--court-line); color:#0A0C11;}
+  .hist-chip{
+    font-family:var(--font-mono); font-weight:700; font-size:11px; width:22px; height:22px; border-radius:5px;
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .hist-chip.us{background:rgba(201,255,61,.18); color:var(--ball-orange); border:1px solid rgba(201,255,61,.3);}
+  .hist-chip.them{background:rgba(255,255,255,.08); color:var(--court-line); border:1px solid var(--border-hi);}
+  .hist-chip.empty{background:transparent; border:1px dashed var(--border);}
+
+  .saved-team-item{
+    display:flex; align-items:center; gap:10px; background:var(--panel-2);
+    border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin-bottom:7px;
+  }
+  .saved-team-item .name{flex:1; font-weight:700; font-size:13.5px;}
+  .score-box .num.bump{animation:pulseScore .45s ease;}
+  .score-box.us .num{color:var(--ball-orange); text-shadow:0 0 30px rgba(201,255,61,.35);}
+  .score-box.them .num{color:var(--ball-yellow); text-shadow:0 0 30px rgba(53,199,255,.3);}
+  .sets-strip{text-align:center; color:var(--muted); font-size:12px; margin-bottom:16px; letter-spacing:.2px; font-family:var(--font-mono);}
+  .sets-strip b{color:var(--court-line);}
+
+  .player-chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+  .chip{
+    background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    padding:9px 15px; font-weight:700; font-size:13px; color:var(--court-line);
+    transition:all .15s ease; font-family:var(--font-mono);
+  }
+  .chip:hover{border-color:var(--ball-orange);}
+  .chip .n{color:var(--ball-yellow); margin-right:5px;}
+  .chip.selected{
+    border-color:var(--ball-orange); color:#0A0C11;
+    background:var(--ball-orange);
+    box-shadow:0 4px 14px rgba(201,255,61,.3);
+  }
+  .chip.selected .n{color:#0A0C11;}
+
+  .action-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+  .action-group{
+    background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:11px;
+    transition:border-color .15s ease;
+  }
+  .action-group:hover{border-color:var(--border-hi);}
+  .action-group h3{margin:0 0 9px 0; font-size:10px; text-transform:uppercase; letter-spacing:.7px; color:var(--electric); font-weight:800; font-family:var(--font-mono);}
+  .action-group .opts{display:flex; flex-wrap:wrap; gap:6px;}
+  .action-group button{flex:1; min-width:70px;}
+
+  .rival-panel{display:flex; flex-wrap:wrap; gap:8px;}
+
+  .event-log{max-height:220px; overflow-y:auto; font-family:var(--font-mono); font-size:11.5px; color:var(--muted);}
+  .event-log div{padding:5px 0; border-bottom:1px dashed var(--border);}
+  .event-log b{color:var(--court-line);}
+
+  video{width:100%; border-radius:10px; background:#000; max-height:50vh; border:1px solid var(--border);}
+  .video-controls{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; align-items:center;}
+
+  .empty{color:var(--muted); font-size:13px; text-align:center; padding:22px 0;}
+  .hint{color:var(--muted); font-size:12px; margin-top:7px; line-height:1.6;}
+  footer{text-align:center; color:#4A5164; font-size:10.5px; padding:28px 16px 44px; letter-spacing:.4px; font-family:var(--font-mono); text-transform:uppercase;}
+
+  /* Dashboard widgets */
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px;}
+  .kpi-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; border-top:3px solid var(--ball-orange);
+  }
+  .kpi-card .kpi-label{font-family:var(--font-mono); font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase;}
+  .kpi-card .kpi-value{font-family:var(--font-mono); font-size:32px; font-weight:900; color:var(--court-line); margin-top:6px;}
+  .kpi-card .kpi-sub{font-size:11px; color:var(--muted); margin-top:2px;}
+  .kpi-card.accent-b{border-top-color:var(--ball-yellow);}
+  .kpi-card.accent-c{border-top-color:var(--electric);}
+  .kpi-card.accent-d{border-top-color:var(--ok-green);}
+  .kpi-card.accent-neg{border-top-color:var(--err-red);}
+
+  .bar-row{display:grid; grid-template-columns:120px 1fr 80px; align-items:center; gap:10px; margin-bottom:10px;}
+  .bar-row.stacked{display:block; margin-bottom:14px;}
+  .bar-row.stacked .lbl{white-space:normal; overflow:visible; text-overflow:unset; font-size:12.5px; margin-bottom:5px; color:var(--court-line);}
+  .bar-row.stacked .bar-line{display:flex; align-items:center; gap:10px;}
+  .bar-row.stacked .bar-line .bar-track{flex:1;}
+  .bar-row.stacked .val{white-space:nowrap; text-align:right; min-width:80px;}
+  .bar-row .lbl{font-size:12px; font-weight:700; font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bar-track{background:#0A0C11; border:1px solid var(--border); border-radius:6px; height:14px; overflow:hidden;}
+  .bar-fill{height:100%; background:linear-gradient(90deg, var(--ball-orange), var(--ball-orange-2)); border-radius:6px; animation:growBar .6s ease;}
+  .bar-fill.alt{background:linear-gradient(90deg, var(--ball-yellow), #8fe6ff);}
+  .bar-fill.neg{background:linear-gradient(90deg, var(--err-red), #ff8ba0);}
+  .bar-row .val{font-family:var(--font-mono); font-size:12px; text-align:right; color:var(--muted);}
+
+  .donut-wrap{display:flex; align-items:center; gap:24px; flex-wrap:wrap;}
+  .donut{width:150px; height:150px; border-radius:50%; flex:none; position:relative;}
+  .donut::after{content:""; position:absolute; inset:20px; border-radius:50%; background:var(--panel);}
+  .donut-legend{display:flex; flex-direction:column; gap:8px; font-family:var(--font-mono); font-size:12px;}
+  .donut-legend .dot{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:8px;}
+
+  .subtabs{display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap;}
+  .subtabs button{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--muted);
+    font-family:var(--font-mono); font-size:11.5px; text-transform:uppercase; letter-spacing:.5px;
+    padding:8px 13px; border-radius:7px; font-weight:700;
+  }
+  .subtabs button.active{color:#0A0C11; background:var(--ball-orange); border-color:var(--ball-orange);}
+
+  details.tbl-details summary{cursor:pointer; font-family:var(--font-mono); font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; padding:4px 0; margin-bottom:10px;}
+  details.tbl-details summary:hover{color:var(--court-line);}
+
+  @media (max-width:520px){
+    .score-box .num{font-size:38px;}
+    .brand h1{font-size:16px;}
+    .bar-row{grid-template-columns:90px 1fr 66px;}
+  }
+
+  .crest-row{display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .crest-preview{
+    width:44px; height:44px; border-radius:8px; border:1px dashed var(--border-hi);
+    display:flex; align-items:center; justify-content:center; overflow:hidden; flex:none;
+    font-size:8px; color:var(--muted); text-align:center; background:#0A0C11; font-family:var(--font-mono);
+  }
+  .crest-preview img{width:100%; height:100%; object-fit:cover;}
+  .crest-row input[type=file]{flex:1; min-width:130px; font-size:11px; color:var(--muted);}
+  .crest-badge{
+    width:34px; height:34px; border-radius:8px; object-fit:cover; margin:0 auto;
+    border:1px solid var(--border-hi); display:block;
+  }
+
+  .court-grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    max-width:480px; margin:0 auto;
+  }
+  .court-grid::before{
+    content:"RED / NET"; grid-column:1 / -1; text-align:center; font-family:var(--font-mono);
+    font-size:10px; letter-spacing:2px; color:var(--ball-orange); padding-bottom:4px; border-bottom:2px solid var(--ball-orange); margin-bottom:4px;
+  }
+  .pos-cell{
+    background:var(--panel-2); border:1px solid var(--border); border-radius:10px;
+    padding:12px 8px; text-align:center; cursor:pointer; transition:border-color .15s ease, transform .1s ease;
+    min-height:78px; display:flex; flex-direction:column; justify-content:center; gap:3px;
+  }
+  .pos-cell:hover{border-color:var(--ball-orange); transform:translateY(-1px);}
+  .pos-cell.selected{border-color:var(--ball-orange); background:rgba(201,255,61,.08); box-shadow:0 0 0 2px rgba(201,255,61,.25);}
+  .pos-cell .tag{font-family:var(--font-mono); font-size:9.5px; color:var(--muted); letter-spacing:1px;}
+  .pos-cell .who{font-weight:800; font-size:12.5px;}
+  .pos-cell .empty-slot{color:var(--muted); font-size:11.5px; font-family:var(--font-mono);}
+  .pos-cell.is-libero{border-color:var(--ball-yellow);}
+  .pos-cell.is-libero .who{color:var(--ball-yellow);}
+  .pos-cell.is-server{border-color:var(--ball-orange); box-shadow:0 0 0 2px rgba(201,255,61,.35); background:rgba(201,255,61,.07);}
+  .libero-btn{margin-top:2px; font-size:9.5px; padding:3px 6px;}
+  .bench-panel{margin-top:14px;}
+  .bench-panel h3{font-size:10.5px; text-transform:uppercase; letter-spacing:.7px; color:var(--electric); font-family:var(--font-mono); margin:0 0 8px;}
+</style>
+</head>
+<body>
+
+<header class="app-head">
+  <div class="brand">
+    <div class="ball"></div>
+    <div>
+      <h1>VoleyStats</h1>
+      <span class="tag">Estadísticas en vivo &amp; video — 100% local</span>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button data-view="equipo" class="active">Equipo</button>
+    <button data-view="vivo">Partido en vivo</button>
+    <button data-view="rotacion">Rotación</button>
+    <button data-view="video">Video</button>
+    <button data-view="stats">Estadísticas</button>
+    <button data-view="historial">Historial</button>
+    <button data-view="datos">Guardar / Cargar</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- EQUIPO -->
+  <section class="view active" id="view-equipo">
+    <div class="card">
+      <h2>Equipos guardados</h2>
+      <p class="hint">Guarda tu plantilla actual (jugadores, líberos, escudo) con un nombre, y la próxima vez la cargas con un clic — útil si manejas varias categorías, ej. "Winners menores", "Winners infantil". Se guarda en este computador y navegador.</p>
+      <div class="row" style="margin-bottom:10px;">
+        <div style="flex:1;min-width:180px;"><input type="text" id="savedTeamName" placeholder="Nombre para guardar, ej. Winners menores"></div>
+        <button class="btn primary" id="btnSaveTeamAs">Guardar equipo actual con este nombre</button>
+      </div>
+      <div id="savedTeamsList"></div>
+      <p class="empty" id="savedTeamsEmpty">Aún no has guardado ningún equipo.</p>
+    </div>
+
+    <div class="card">
+      <h2>Datos del partido</h2>
+      <div class="row">
+        <div style="flex:1;min-width:160px;">
+          <label>Nuestro equipo</label>
+          <input type="text" id="teamName" placeholder="Ej. Tigres A">
+          <div class="crest-row">
+            <div class="crest-preview" id="crestUsPreview">Sin escudo</div>
+            <input type="file" id="crestUsFile" accept="image/*">
+            <button class="btn small danger" id="crestUsClear">Quitar</button>
+          </div>
+        </div>
+        <div style="flex:1;min-width:160px;">
+          <label>Rival</label>
+          <input type="text" id="rivalName" placeholder="Ej. Águilas">
+          <div class="crest-row">
+            <div class="crest-preview" id="crestThemPreview">Sin escudo</div>
+            <input type="file" id="crestThemFile" accept="image/*">
+            <button class="btn small danger" id="crestThemClear">Quitar</button>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Sube el escudo, logo o bandera de cada equipo (queda guardado en tu computador, dentro del archivo del partido — no se sube a internet).</p>
+    </div>
+
+    <div class="card">
+      <h2>Roster</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <div style="width:70px;"><label>#</label><input type="number" id="pNum" min="0" max="99"></div>
+        <div style="flex:1;min-width:140px;"><label>Nombre</label><input type="text" id="pName" placeholder="Nombre del jugador"></div>
+        <div style="width:110px;">
+          <label>Posición</label>
+          <select id="pPos">
+            <option>Colocador</option>
+            <option>Opuesto</option>
+            <option>Central</option>
+            <option>Receptor</option>
+            <option>Líbero</option>
+          </select>
+        </div>
+        <div style="align-self:flex-end;"><button class="btn primary" id="addPlayer">+ Agregar</button></div>
+      </div>
+      <div id="rosterList"></div>
+      <p class="empty" id="rosterEmpty">Aún no hay jugadores. Agrega tu roster para empezar.</p>
+    </div>
+  </section>
+
+  <!-- VIVO -->
+  <section class="view" id="view-vivo">
+    <div class="card">
+      <h2>Configuración del partido</h2>
+      <div class="row">
+        <div style="width:140px;">
+          <label>Sets a jugar</label>
+          <select id="cfgTotalSets">
+            <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option>
+          </select>
+        </div>
+        <div style="width:140px;">
+          <label>Puntos por set</label>
+          <select id="cfgPointsPerSet">
+            <option value="15">15</option><option value="21">21</option><option value="25" selected>25</option>
+          </select>
+        </div>
+        <div style="width:170px;">
+          <label>¿Quién saca este set?</label>
+          <select id="cfgServer">
+            <option value="us">Nosotros</option>
+            <option value="them">Rival</option>
+          </select>
+        </div>
+        <div style="align-self:flex-end;"><button class="btn small primary" id="btnApplyServer">Fijar saque</button></div>
+      </div>
+      <p class="hint" id="matchFinishedBanner" style="display:none; color:var(--ball-orange); font-weight:800;"></p>
+    </div>
+
+    <div class="scoreboard">
+      <div class="score-box us" id="boxUs">
+        <img class="crest-badge" id="crestUsImg" style="display:none;">
+        <div class="who" id="lblUs">NOSOTROS</div>
+        <div class="score-manual-row">
+          <button class="btn small manual-btn" id="minusUs">−</button>
+          <div class="num" id="scoreUs">0</div>
+          <button class="btn small manual-btn" id="plusUs">+</button>
+        </div>
+      </div>
+      <div class="score-box them" id="boxThem">
+        <img class="crest-badge" id="crestThemImg" style="display:none;">
+        <div class="who" id="lblThem">RIVAL</div>
+        <div class="score-manual-row">
+          <button class="btn small manual-btn" id="minusThem">−</button>
+          <div class="num" id="scoreThem">0</div>
+          <button class="btn small manual-btn" id="plusThem">+</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint" style="text-align:center; margin-top:-8px;">El + / − junto al marcador suma o resta un punto directo, sin necesidad de marcar la jugada — úsalo si solo quieres llevar el marcador.</p>
+    <div class="sets-strip">Set <b id="setNum">1</b> · Sets ganados — Nosotros <b id="setsUs">0</b> / Rival <b id="setsThem">0</b></div>
+    <div class="row" style="justify-content:center; margin-bottom:14px;">
+      <button class="btn small" id="btnFinishSet">Finalizar set</button>
+      <button class="btn small ghost" id="btnUndo">Deshacer última jugada</button>
+      <button class="btn small danger" id="btnResetMatch">Reiniciar partido</button>
+    </div>
+
+    <div class="card">
+      <h2>Sets jugados</h2>
+      <div id="setHistoryBox"><p class="empty">Aún no se ha cerrado ningún set.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>1. Elige quién tocó el balón</h2>
+      <div class="player-chips" id="liveChips"></div>
+      <p class="hint" id="noPlayersHint">Agrega jugadores en la pestaña "Equipo" primero.</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Registra la acción</h2>
+      <div class="action-grid" id="actionGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Punto para el rival (sin jugador nuestro asociado)</h2>
+      <div class="rival-panel" id="rivalPanel"></div>
+    </div>
+
+    <div class="card">
+      <h2>Bitácora de la jugada</h2>
+      <div class="event-log" id="eventLog"><div class="empty">Sin jugadas registradas todavía.</div></div>
+    </div>
+  </section>
+
+  <!-- ROTACIÓN -->
+  <section class="view" id="view-rotacion">
+    <div class="card" id="setupCard">
+      <h2>Formación inicial del set <span id="setupSetNum">1</span></h2>
+      <p class="hint">Asigna un jugador a cada posición de la cancha. P2, P3 y P4 son delanteros (junto a la red); P1, P5 y P6 son zagueros. Una vez confirmada, la rotación se mueve sola cada vez que tu equipo gana el saque (side-out).</p>
+      <div class="court-grid" id="setupGrid"></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn primary" id="btnConfirmLineup">Confirmar formación inicial</button>
+        <span class="hint" id="setupHint"></span>
+      </div>
+    </div>
+
+    <div id="rotationLive" style="display:none;">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <div class="hint">Cambios usados este set: <b id="subsUsed">0</b> / 6</div>
+        <button class="btn small ghost" id="btnEditLineup">Nueva formación (nuevo set)</button>
+      </div>
+      <div class="card">
+        <h2>Cancha — toca una posición para cambiar al jugador</h2>
+        <div class="court-grid" id="courtGrid"></div>
+        <div id="benchPanel"></div>
+      </div>
+      <div class="card">
+        <h2>Historial de cambios y líbero</h2>
+        <div class="event-log" id="subsLogBox"><div class="empty">Sin cambios todavía en este set.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIDEO -->
+  <section class="view" id="view-video">
+    <div class="card">
+      <h2>Cargar video del partido (queda en tu computador, no se sube a internet)</h2>
+      <input type="file" id="videoFile" accept="video/*">
+      <video id="videoPlayer" controls style="display:none; margin-top:10px;"></video>
+      <div class="video-controls" id="videoControls" style="display:none;">
+        <button class="btn small" id="vBack">« 5s</button>
+        <button class="btn small" id="vFwd">5s »</button>
+        <span class="hint" id="vTime">00:00</span>
+      </div>
+      <p class="hint">Esta app no incluye detección automática por inteligencia artificial: eso requeriría modelos de visión por computador con costos de cómputo/GPU o APIs de pago, y no sería confiable de forma gratuita todavía. En su lugar, aquí marcas cada jugada mientras ves el video, y queda guardado el minuto exacto para revisarla después.</p>
+    </div>
+
+    <div class="card" id="videoTagCard" style="display:none;">
+      <h2>1. Jugador</h2>
+      <div class="player-chips" id="videoChips"></div>
+      <h2 style="margin-top:14px;">2. Acción</h2>
+      <div class="action-grid" id="videoActionGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Jugadas marcadas en el video</h2>
+      <div class="event-log" id="videoEventLog"><div class="empty">Sin marcas todavía.</div></div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="view" id="view-stats">
+    <div class="subtabs">
+      <button data-stat="equipo" class="active">Dashboard equipo</button>
+      <button data-stat="jugador">Jugador por jugador</button>
+      <button data-stat="comparar">Comparar jugadoras</button>
+      <button data-stat="tabla">Tabla completa</button>
+    </div>
+
+    <!-- Dashboard equipo -->
+    <div id="statPanel-equipo">
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="card">
+        <h2>Puntos por jugador</h2>
+        <div id="barChartPoints"></div>
+        <p class="empty" id="barChartEmpty">Aún no hay jugadas registradas.</p>
+      </div>
+      <div class="card">
+        <h2>Rendimiento total por jugador (puntos − errores)</h2>
+        <div id="barChartPerf"></div>
+        <p class="empty" id="barChartPerfEmpty">Aún no hay jugadas registradas.</p>
+      </div>
+      <div class="card">
+        <h2>Origen de los puntos del equipo</h2>
+        <div class="donut-wrap" id="donutWrap"></div>
+      </div>
+    </div>
+
+    <!-- Jugador por jugador -->
+    <div id="statPanel-jugador" style="display:none;">
+      <div class="card">
+        <h2>Elige un jugador</h2>
+        <div class="player-chips" id="statChips"></div>
+      </div>
+      <div id="playerDash"></div>
+    </div>
+
+    <!-- Comparar jugadoras -->
+    <div id="statPanel-comparar" style="display:none;">
+      <div class="card">
+        <h2>Elige hasta 3 jugadoras para comparar</h2>
+        <div class="player-chips" id="compareChips"></div>
+      </div>
+      <div class="card">
+        <div style="overflow-x:auto;">
+          <table id="compareTable"></table>
+        </div>
+        <p class="empty" id="compareEmpty">Elige al menos 2 jugadoras arriba para comparar.</p>
+      </div>
+    </div>
+
+    <!-- Tabla completa -->
+    <div id="statPanel-tabla" style="display:none;">
+      <div class="card">
+        <h2>Estadísticas por jugador (partido en vivo)</h2>
+        <div style="overflow-x:auto;">
+          <table id="statsTable"></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORIAL -->
+  <section class="view" id="view-historial">
+    <div class="card" id="historialHeader"></div>
+    <div id="historialSets"></div>
+  </section>
+
+  <!-- DATOS -->
+  <section class="view" id="view-datos">
+    <div class="card">
+      <h2>Guardar / cargar solo el equipo (roster)</h2>
+      <p class="hint">Útil para reutilizar tu plantilla (jugadores, líberos y escudo) en otros partidos, sin llevar el marcador ni las jugadas.</p>
+      <div class="row">
+        <button class="btn" id="btnExportTeam">Descargar equipo (.json)</button>
+        <input type="file" id="importTeam" accept="application/json" style="max-width:220px;">
+      </div>
+    </div>
+    <div class="card">
+      <h2>Guardar tu partido</h2>
+      <p class="hint">Descarga un archivo en tu computador con todo el partido (roster, marcador, jugadas, rotación y marcas de video). Ábrelo cuando quieras seguir o para sacar el reporte.</p>
+
+      <button class="btn primary" id="btnExportJson">Descargar partido (.json)</button>
+    </div>
+    <div class="card">
+      <h2>Cargar un partido guardado</h2>
+      <input type="file" id="importJson" accept="application/json">
+    </div>
+    <div class="card">
+      <h2>Exportar estadísticas</h2>
+      <p class="hint">Genera una tabla en formato Excel/CSV con las estadísticas por jugador.</p>
+      <button class="btn" id="btnExportCsv">Descargar estadísticas (.csv)</button>
+    </div>
+  </section>
+
+</main>
+
+<footer>VoleyStats · corre 100% en tu navegador, sin conexión a internet ni servicios de pago.</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- STATE ----------
+  const state = {
+    teamName: "", rivalName: "", teamCrest: null, rivalCrest: null,
+    players: [], // {id, num, name, pos, isLibero}
+    match: {
+      scoreUs:0, scoreThem:0, setNum:1, setsUs:0, setsThem:0,
+      servingTeam:"us", events:[], history:[], // history = snapshots for undo
+      config:{ totalSets:3, pointsPerSet:25 },
+      setHistory:[], // {setNum, us, them, winner}
+      pointLog:[], // {setNum, team, usScore, themScore}
+      finished:false
+    },
+    rotation: newRotationState(),
+    video: { events:[] }
+  };
+  function newRotationState(){
+    return {
+      lineup:[null,null,null,null,null,null], // P1..P6 player ids
+      locked:false,
+      starterState:{}, // playerId -> {exited,reentered}
+      subState:{}, // playerId -> {entered,pairedStarter}
+      subsCountThisSet:0,
+      log:[] // {type:'sub'|'libero', text, ts}
+    };
+  }
+  const POS_LABELS = ["P1 (zaguero derecho)","P2 (delantero derecho)","P3 (delantero centro)","P4 (delantero izquierdo)","P5 (zaguero izquierdo)","P6 (zaguero centro)"];
+  const BACK_ROW_IDX = [0,4,5]; // P1, P5, P6
+  const CELL_ORDER = [3,2,1,4,5,0]; // display order: front row P4 P3 P2, back row P5 P6 P1
+  let nextPlayerId = 1;
+  let selectedLivePlayer = null;
+  let selectedVideoPlayer = null;
+  let selectedCourtPos = null;
+
+  const ACTIONS = [
+    { key:"saque", label:"Saque", opts:[
+      {k:"ace", label:"Ace", result:"point_us"},
+      {k:"error", label:"Error", result:"point_them"},
+      {k:"in", label:"En juego", result:"none"}
+    ]},
+    { key:"recepcion", label:"Recepción", opts:[
+      {k:"r3", label:"Perfecta (3)", result:"none"},
+      {k:"r2", label:"Buena (2)", result:"none"},
+      {k:"r1", label:"Pobre (1)", result:"none"},
+      {k:"r0", label:"Error (0)", result:"point_them"}
+    ]},
+    { key:"ataque", label:"Ataque", opts:[
+      {k:"kill", label:"Punto", result:"point_us"},
+      {k:"bloqueado", label:"Bloqueado", result:"point_them"},
+      {k:"error", label:"Error / Fuera", result:"point_them"}
+    ]},
+    { key:"bloqueo", label:"Bloqueo", opts:[
+      {k:"punto", label:"Punto", result:"point_us"},
+      {k:"toque", label:"Toque (sigue)", result:"none"},
+      {k:"error", label:"Error (red/inv.)", result:"point_them"}
+    ]},
+    { key:"defensa", label:"Defensa", opts:[
+      {k:"excelente", label:"Excelente", result:"none"},
+      {k:"error", label:"Error", result:"point_them"}
+    ]},
+    { key:"colocacion", label:"Colocación", opts:[
+      {k:"asistencia", label:"Asistencia", result:"none"},
+      {k:"error", label:"Error", result:"point_them"}
+    ]}
+  ];
+  const RIVAL_REASONS = [
+    {k:"ataque_rival", label:"Ataque rival"},
+    {k:"saque_rival", label:"Ace rival"},
+    {k:"bloqueo_rival", label:"Bloqueo rival"},
+    {k:"error_nuestro", label:"Error no forzado nuestro"}
+  ];
+
+  // ---------- TABS ----------
+  document.querySelectorAll("nav.tabs button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("view-"+btn.dataset.view).classList.add("active");
+      if(btn.dataset.view==="stats") renderStats();
+      if(btn.dataset.view==="rotacion") renderRotationView();
+      if(btn.dataset.view==="historial") renderHistorialTab();
+    });
+  });
+
+  // ---------- ROSTER ----------
+  document.getElementById("teamName").addEventListener("input", e=>{
+    state.teamName = e.target.value;
+    document.getElementById("lblUs").textContent = (state.teamName || "NOSOTROS").toUpperCase();
+  });
+  document.getElementById("rivalName").addEventListener("input", e=>{
+    state.rivalName = e.target.value;
+    document.getElementById("lblThem").textContent = (state.rivalName || "RIVAL").toUpperCase();
+  });
+
+  function setCrest(team, dataUrl){
+    if(team==="us") state.teamCrest = dataUrl; else state.rivalCrest = dataUrl;
+    renderCrests();
+  }
+  function renderCrests(){
+    const map = [
+      {crest:state.teamCrest, prev:"crestUsPreview", img:"crestUsImg"},
+      {crest:state.rivalCrest, prev:"crestThemPreview", img:"crestThemImg"}
+    ];
+    map.forEach(m=>{
+      const prev = document.getElementById(m.prev), img = document.getElementById(m.img);
+      if(m.crest){
+        prev.innerHTML = `<img src="${m.crest}">`;
+        img.src = m.crest; img.style.display = "block";
+      } else {
+        prev.textContent = "Sin escudo";
+        img.style.display = "none"; img.removeAttribute("src");
+      }
+    });
+  }
+  function readImageFile(file, cb){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=> cb(reader.result);
+    reader.readAsDataURL(file);
+  }
+  document.getElementById("crestUsFile").addEventListener("change", e=> readImageFile(e.target.files[0], url=>setCrest("us", url)));
+  document.getElementById("crestThemFile").addEventListener("change", e=> readImageFile(e.target.files[0], url=>setCrest("them", url)));
+  document.getElementById("crestUsClear").addEventListener("click", ()=>{ setCrest("us", null); document.getElementById("crestUsFile").value=""; });
+  document.getElementById("crestThemClear").addEventListener("click", ()=>{ setCrest("them", null); document.getElementById("crestThemFile").value=""; });
+
+  // ---------- EQUIPOS GUARDADOS (localStorage) ----------
+  const SAVED_TEAMS_KEY = "voleystats_saved_teams_v1";
+  function loadSavedTeams(){
+    try{ return JSON.parse(localStorage.getItem(SAVED_TEAMS_KEY) || "{}"); }
+    catch(e){ return {}; }
+  }
+  function persistSavedTeams(obj){
+    try{ localStorage.setItem(SAVED_TEAMS_KEY, JSON.stringify(obj)); return true; }
+    catch(e){ alert("No se pudo guardar en este navegador (¿modo incógnito o memoria llena?)."); return false; }
+  }
+  function renderSavedTeams(){
+    const saved = loadSavedTeams();
+    const names = Object.keys(saved);
+    document.getElementById("savedTeamsEmpty").style.display = names.length ? "none" : "block";
+    const list = document.getElementById("savedTeamsList");
+    list.innerHTML = "";
+    names.forEach(name=>{
+      const div = document.createElement("div");
+      div.className = "saved-team-item";
+      div.innerHTML = `<div class="name">${name}</div>`;
+      const load = document.createElement("button");
+      load.className = "btn small primary"; load.textContent = "Cargar";
+      load.addEventListener("click", ()=>{
+        if(!confirm(`Esto reemplaza el equipo actual (nombre, escudo y roster) por "${name}". ¿Continuar?`)) return;
+        const team = saved[name];
+        state.teamName = team.teamName||""; state.teamCrest = team.teamCrest||null;
+        state.players = team.players||[];
+        nextPlayerId = Math.max(1,...state.players.map(p=>(p.id||0)+1),1);
+        document.getElementById("teamName").value = state.teamName;
+        document.getElementById("lblUs").textContent = (state.teamName||"NOSOTROS").toUpperCase();
+        renderRoster(); renderChips(); renderCrests();
+        alert(`Equipo "${name}" cargado.`);
+      });
+      const del = document.createElement("button");
+      del.className = "btn small danger"; del.textContent = "Borrar";
+      del.addEventListener("click", ()=>{
+        if(!confirm(`¿Borrar el equipo guardado "${name}"? Esto no borra el equipo que tengas cargado ahora mismo.`)) return;
+        delete saved[name];
+        persistSavedTeams(saved);
+        renderSavedTeams();
+      });
+      div.appendChild(load); div.appendChild(del);
+      list.appendChild(div);
+    });
+  }
+  document.getElementById("btnSaveTeamAs").addEventListener("click", ()=>{
+    const name = document.getElementById("savedTeamName").value.trim();
+    if(!name){ alert("Escribe un nombre para guardar este equipo, ej. Winners menores."); return; }
+    const saved = loadSavedTeams();
+    if(saved[name] && !confirm(`Ya existe un equipo guardado como "${name}". ¿Sobrescribirlo?`)) return;
+    saved[name] = { teamName: state.teamName, teamCrest: state.teamCrest, players: state.players };
+    if(persistSavedTeams(saved)){
+      document.getElementById("savedTeamName").value = "";
+      renderSavedTeams();
+    }
+  });
+
+  document.getElementById("addPlayer").addEventListener("click", ()=>{
+    const num = document.getElementById("pNum").value;
+    const name = document.getElementById("pName").value.trim();
+    const pos = document.getElementById("pPos").value;
+    if(!name){ alert("Escribe el nombre del jugador."); return; }
+    state.players.push({id:nextPlayerId++, num: num || "-", name, pos, isLibero:false});
+    document.getElementById("pNum").value = "";
+    document.getElementById("pName").value = "";
+    renderRoster();
+    renderChips();
+  });
+
+  let editingPlayerId = null;
+  function renderRoster(){
+    const list = document.getElementById("rosterList");
+    list.innerHTML = "";
+    document.getElementById("rosterEmpty").style.display = state.players.length ? "none":"block";
+    sortedByNumber(state.players).forEach(p=>{
+      const div = document.createElement("div");
+      div.className = "roster-item";
+
+      if(editingPlayerId===p.id){
+        div.style.flexWrap = "wrap";
+        div.innerHTML = `
+          <div style="width:60px;"><input type="number" id="editNum" value="${p.num==='-'?'':p.num}" placeholder="#"></div>
+          <div style="flex:1;min-width:120px;"><input type="text" id="editName" value="${p.name}"></div>
+          <div style="width:130px;">
+            <select id="editPos">
+              ${["Colocador","Opuesto","Central","Receptor","Líbero"].map(o=>`<option ${o===p.pos?'selected':''}>${o}</option>`).join("")}
+            </select>
+          </div>`;
+        const save = document.createElement("button");
+        save.className = "btn small primary"; save.textContent = "Guardar";
+        save.addEventListener("click", ()=>{
+          const num = document.getElementById("editNum").value.trim();
+          const name = document.getElementById("editName").value.trim();
+          const pos = document.getElementById("editPos").value;
+          if(!name){ alert("El nombre no puede quedar vacío."); return; }
+          p.num = num || "-"; p.name = name; p.pos = pos;
+          editingPlayerId = null;
+          renderRoster(); renderChips();
+        });
+        const cancel = document.createElement("button");
+        cancel.className = "btn small ghost"; cancel.textContent = "Cancelar";
+        cancel.addEventListener("click", ()=>{ editingPlayerId=null; renderRoster(); });
+        div.appendChild(save); div.appendChild(cancel);
+        list.appendChild(div);
+        return;
+      }
+
+      div.innerHTML = `<div class="num">${p.num}</div><div class="name">${p.name}</div><div class="pos">${p.pos}</div>`;
+      const edit = document.createElement("button");
+      edit.className = "btn small"; edit.textContent = "Editar";
+      edit.addEventListener("click", ()=>{ editingPlayerId = p.id; renderRoster(); });
+      div.appendChild(edit);
+      const lib = document.createElement("button");
+      lib.className = "btn small" + (p.isLibero ? " primary" : "");
+      lib.textContent = p.isLibero ? "★ Líbero" : "Marcar Líbero";
+      lib.title = "Máximo 2 líberos por equipo";
+      lib.addEventListener("click", ()=>{
+        if(!p.isLibero){
+          const count = state.players.filter(x=>x.isLibero).length;
+          if(count>=2){ alert("Ya hay 2 líberos marcados (el máximo permitido por equipo)."); return; }
+        }
+        p.isLibero = !p.isLibero;
+        renderRoster();
+      });
+      div.appendChild(lib);
+      const del = document.createElement("button");
+      del.className = "btn small danger"; del.textContent = "Quitar";
+      del.addEventListener("click", ()=>{
+        if(!confirm(`¿Quitar a ${p.name} del roster?`)) return;
+        state.players = state.players.filter(x=>x.id!==p.id);
+        renderRoster(); renderChips();
+      });
+      div.appendChild(del);
+      list.appendChild(div);
+    });
+  }
+
+  function chipHtml(p, selectedId){
+    return `<button class="chip ${p.id===selectedId?'selected':''}" data-id="${p.id}"><span class="n">#${p.num}</span>${p.name}</button>`;
+  }
+
+  function sortedByNumber(list){
+    return [...list].sort((a,b)=>{
+      const na = parseInt(a.num,10), nb = parseInt(b.num,10);
+      const va = isNaN(na) ? 9999 : na, vb = isNaN(nb) ? 9999 : nb;
+      return va-vb;
+    });
+  }
+
+  function renderChips(){
+    const hint = document.getElementById("noPlayersHint");
+    hint.style.display = state.players.length ? "none" : "block";
+    const ordered = sortedByNumber(state.players);
+
+    const live = document.getElementById("liveChips");
+    live.innerHTML = ordered.map(p=>chipHtml(p, selectedLivePlayer)).join("");
+    live.querySelectorAll(".chip").forEach(c=>c.addEventListener("click", ()=>{
+      selectedLivePlayer = Number(c.dataset.id); renderChips();
+    }));
+
+    const vid = document.getElementById("videoChips");
+    vid.innerHTML = ordered.map(p=>chipHtml(p, selectedVideoPlayer)).join("");
+    vid.querySelectorAll(".chip").forEach(c=>c.addEventListener("click", ()=>{
+      selectedVideoPlayer = Number(c.dataset.id); renderChips();
+    }));
+  }
+
+  // ---------- ACTION GRIDS ----------
+  function buildActionGrid(container, onPick){
+    container.innerHTML = "";
+    ACTIONS.forEach(group=>{
+      const g = document.createElement("div");
+      g.className = "action-group";
+      g.innerHTML = `<h3>${group.label}</h3><div class="opts"></div>`;
+      const opts = g.querySelector(".opts");
+      group.opts.forEach(o=>{
+        const b = document.createElement("button");
+        b.className = "btn small";
+        b.textContent = o.label;
+        b.addEventListener("click", ()=> onPick(group, o));
+        opts.appendChild(b);
+      });
+      container.appendChild(g);
+    });
+  }
+  buildActionGrid(document.getElementById("actionGrid"), (group,opt)=>registerLiveAction(group,opt));
+  buildActionGrid(document.getElementById("videoActionGrid"), (group,opt)=>registerVideoAction(group,opt));
+
+  const rivalPanel = document.getElementById("rivalPanel");
+  RIVAL_REASONS.forEach(r=>{
+    const b = document.createElement("button");
+    b.className = "btn small"; b.textContent = r.label;
+    b.addEventListener("click", ()=> registerRivalPoint(r));
+    rivalPanel.appendChild(b);
+  });
+
+  // ---------- LIVE MATCH LOGIC ----------
+  function snapshot(){
+    state.match.history.push(JSON.parse(JSON.stringify({
+      scoreUs:state.match.scoreUs, scoreThem:state.match.scoreThem,
+      servingTeam:state.match.servingTeam, events:state.match.events
+    })));
+    if(state.match.history.length>50) state.match.history.shift();
+  }
+
+  function applyPoint(team){
+    if(team==="us"){
+      const sideOut = state.match.servingTeam!=="us";
+      state.match.servingTeam="us";
+      state.match.scoreUs++;
+      if(sideOut) rotateLineup();
+    } else {
+      state.match.servingTeam="them";
+      state.match.scoreThem++;
+    }
+    state.match.pointLog.push({setNum:state.match.setNum, team, usScore:state.match.scoreUs, themScore:state.match.scoreThem});
+    renderScoreboard();
+    if(document.getElementById("view-rotacion").classList.contains("active")) renderRotationView();
+  }
+
+  function rotateLineup(){
+    const L = state.rotation.lineup;
+    if(!state.rotation.locked || L.every(x=>x===null)) return;
+    const rotated = [L[1],L[2],L[3],L[4],L[5],L[0]];
+    state.rotation.lineup = rotated;
+    if(document.getElementById("view-rotacion").classList.contains("active")) renderRotationView();
+  }
+
+  function registerLiveAction(group, opt){
+    if(!selectedLivePlayer){ alert("Primero elige qué jugador tocó el balón."); return; }
+    snapshot();
+    const player = state.players.find(p=>p.id===selectedLivePlayer);
+    const ev = { player: player.id, playerName: player.name, group: group.key, opt: opt.k, optLabel: opt.label, groupLabel: group.label, ts: Date.now() };
+    state.match.events.push(ev);
+    if(opt.result==="point_us") applyPoint("us");
+    if(opt.result==="point_them") applyPoint("them");
+    renderEventLog();
+  }
+
+  function registerRivalPoint(reason){
+    snapshot();
+    state.match.events.push({player:null, playerName:"—", group:"rival", opt:reason.k, optLabel:reason.label, groupLabel:"Punto rival", ts:Date.now()});
+    applyPoint("them");
+    renderEventLog();
+  }
+
+  document.getElementById("plusUs").addEventListener("click", ()=> applyPoint("us"));
+  document.getElementById("plusThem").addEventListener("click", ()=> applyPoint("them"));
+  document.getElementById("minusUs").addEventListener("click", ()=>{
+    if(state.match.scoreUs>0){ state.match.scoreUs--; popLastPointLog("us"); renderScoreboard(); }
+  });
+  document.getElementById("minusThem").addEventListener("click", ()=>{
+    if(state.match.scoreThem>0){ state.match.scoreThem--; popLastPointLog("them"); renderScoreboard(); }
+  });
+  function popLastPointLog(team){
+    for(let i=state.match.pointLog.length-1;i>=0;i--){
+      if(state.match.pointLog[i].team===team && state.match.pointLog[i].setNum===state.match.setNum){ state.match.pointLog.splice(i,1); break; }
+    }
+  }
+
+  document.getElementById("btnApplyServer").addEventListener("click", ()=>{
+    state.match.servingTeam = document.getElementById("cfgServer").value;
+    renderScoreboard();
+  });
+  document.getElementById("cfgTotalSets").addEventListener("change", e=>{ state.match.config.totalSets = Number(e.target.value); });
+  document.getElementById("cfgPointsPerSet").addEventListener("change", e=>{ state.match.config.pointsPerSet = Number(e.target.value); });
+
+  document.getElementById("btnUndo").addEventListener("click", ()=>{
+    const last = state.match.history.pop();
+    if(!last){ return; }
+    state.match.scoreUs = last.scoreUs;
+    state.match.scoreThem = last.scoreThem;
+    state.match.servingTeam = last.servingTeam;
+    state.match.events = last.events;
+    renderScoreboard(); renderEventLog();
+  });
+
+  document.getElementById("btnFinishSet").addEventListener("click", ()=>{
+    const {scoreUs, scoreThem} = state.match;
+    const target = state.match.config.pointsPerSet;
+    if(Math.abs(scoreUs-scoreThem)<2 || Math.max(scoreUs,scoreThem)<target){
+      if(!confirm(`El marcador no cumple la regla de 2 puntos de diferencia (set a ${target} puntos). ¿Cerrar el set de todas formas?`)) return;
+    }
+    const winner = scoreUs>scoreThem ? "us" : "them";
+    state.match.setHistory.push({setNum:state.match.setNum, us:scoreUs, them:scoreThem, winner});
+    if(winner==="us") state.match.setsUs++; else state.match.setsThem++;
+    state.match.setNum++;
+    state.match.scoreUs = 0; state.match.scoreThem = 0;
+    state.rotation = newRotationState();
+    if(state.match.setHistory.length >= state.match.config.totalSets){
+      state.match.finished = true;
+    }
+    renderScoreboard(); renderSetHistory();
+    if(document.getElementById("view-rotacion").classList.contains("active")) renderRotationView();
+    if(document.getElementById("view-historial") && document.getElementById("view-historial").classList.contains("active")) renderHistorialTab();
+  });
+
+  document.getElementById("btnResetMatch").addEventListener("click", ()=>{
+    if(!confirm("Esto borra el marcador y las jugadas del partido en vivo (no borra el roster). ¿Continuar?")) return;
+    state.match.scoreUs=0; state.match.scoreThem=0; state.match.setNum=1;
+    state.match.setsUs=0; state.match.setsThem=0; state.match.servingTeam="us";
+    state.match.events=[]; state.match.history=[]; state.match.setHistory=[]; state.match.pointLog=[]; state.match.finished=false;
+    state.rotation = newRotationState();
+    renderScoreboard(); renderEventLog(); renderSetHistory();
+    if(document.getElementById("view-rotacion").classList.contains("active")) renderRotationView();
+    if(document.getElementById("view-historial") && document.getElementById("view-historial").classList.contains("active")) renderHistorialTab();
+  });
+
+  function renderSetHistory(){
+    const box = document.getElementById("setHistoryBox");
+    if(!state.match.setHistory.length){ box.innerHTML = '<p class="empty">Aún no se ha cerrado ningún set.</p>'; return; }
+    box.innerHTML = state.match.setHistory.map(s=>{
+      const winnerName = s.winner==="us" ? (state.teamName||"Nosotros") : (state.rivalName||"Rival");
+      return `<div class="roster-item"><div class="name">Set ${s.setNum}</div><div class="pos" style="color:var(--court-line); font-weight:800;">${s.us} — ${s.them}</div><div class="pos">Gana: ${winnerName}</div></div>`;
+    }).join("");
+    const banner = document.getElementById("matchFinishedBanner");
+    if(state.match.finished){
+      banner.style.display = "block";
+      banner.textContent = `Partido terminado — ${state.teamName||"Nosotros"} ${state.match.setsUs} sets, ${state.rivalName||"Rival"} ${state.match.setsThem} sets.`;
+    } else {
+      banner.style.display = "none";
+    }
+  }
+
+  let lastScoreUs = 0, lastScoreThem = 0;
+  function renderScoreboard(){
+    const elUs = document.getElementById("scoreUs"), elThem = document.getElementById("scoreThem");
+    if(state.match.scoreUs !== lastScoreUs){ elUs.classList.remove("bump"); void elUs.offsetWidth; elUs.classList.add("bump"); lastScoreUs = state.match.scoreUs; }
+    if(state.match.scoreThem !== lastScoreThem){ elThem.classList.remove("bump"); void elThem.offsetWidth; elThem.classList.add("bump"); lastScoreThem = state.match.scoreThem; }
+    elUs.textContent = state.match.scoreUs;
+    elThem.textContent = state.match.scoreThem;
+    document.getElementById("setNum").textContent = state.match.setNum;
+    document.getElementById("setsUs").textContent = state.match.setsUs;
+    document.getElementById("setsThem").textContent = state.match.setsThem;
+    document.getElementById("boxUs").classList.toggle("serving", state.match.servingTeam==="us");
+    document.getElementById("boxThem").classList.toggle("serving", state.match.servingTeam==="them");
+  }
+
+  function renderEventLog(){
+    const log = document.getElementById("eventLog");
+    if(!state.match.events.length){ log.innerHTML = '<div class="empty">Sin jugadas registradas todavía.</div>'; return; }
+    log.innerHTML = state.match.events.slice().reverse().slice(0,60).map(ev=>{
+      const t = new Date(ev.ts).toLocaleTimeString();
+      return `<div>[${t}] <b>${ev.playerName}</b> — ${ev.groupLabel}: ${ev.optLabel}</div>`;
+    }).join("");
+  }
+
+  // ---------- VIDEO TAGGING ----------
+  const videoFile = document.getElementById("videoFile");
+  const videoPlayer = document.getElementById("videoPlayer");
+  videoFile.addEventListener("change", ()=>{
+    const f = videoFile.files[0];
+    if(!f) return;
+    const url = URL.createObjectURL(f);
+    videoPlayer.src = url;
+    videoPlayer.style.display = "block";
+    document.getElementById("videoControls").style.display = "flex";
+    document.getElementById("videoTagCard").style.display = "block";
+  });
+  document.getElementById("vBack").addEventListener("click", ()=>{ videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime-5); });
+  document.getElementById("vFwd").addEventListener("click", ()=>{ videoPlayer.currentTime += 5; });
+  videoPlayer.addEventListener("timeupdate", ()=>{
+    document.getElementById("vTime").textContent = fmtTime(videoPlayer.currentTime);
+  });
+  function fmtTime(s){
+    const m = Math.floor(s/60), sec = Math.floor(s%60);
+    return String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");
+  }
+
+  function registerVideoAction(group, opt){
+    if(!selectedVideoPlayer){ alert("Primero elige qué jugador tocó el balón."); return; }
+    const player = state.players.find(p=>p.id===selectedVideoPlayer);
+    const ev = { player: player.id, playerName: player.name, group: group.key, opt: opt.k, optLabel: opt.label, groupLabel: group.label, videoTime: videoPlayer.currentTime||0 };
+    state.video.events.push(ev);
+    renderVideoLog();
+  }
+
+  function renderVideoLog(){
+    const log = document.getElementById("videoEventLog");
+    if(!state.video.events.length){ log.innerHTML = '<div class="empty">Sin marcas todavía.</div>'; return; }
+    log.innerHTML = state.video.events.slice().reverse().map((ev,idxRev)=>{
+      const idx = state.video.events.length-1-idxRev;
+      return `<div><a href="#" data-t="${ev.videoTime}" class="jump" style="color:var(--ball-orange); text-decoration:none;">[${fmtTime(ev.videoTime)}]</a> <b>${ev.playerName}</b> — ${ev.groupLabel}: ${ev.optLabel}</div>`;
+    }).join("");
+    log.querySelectorAll(".jump").forEach(a=>{
+      a.addEventListener("click", (e)=>{ e.preventDefault(); videoPlayer.currentTime = Number(a.dataset.t); videoPlayer.play(); });
+    });
+  }
+
+  // ---------- STATS ----------
+  function computePlayerStats(){
+    const rows = {};
+    state.players.forEach(p=> rows[p.id] = {
+      name:p.name, num:p.num,
+      saqueAce:0, saqueError:0, saqueTotal:0,
+      recSum:0, recCount:0,
+      ataqueKill:0, ataqueError:0, ataqueBloq:0, ataqueTotal:0,
+      bloqPunto:0, bloqError:0, bloqTotal:0,
+      defExc:0, defError:0, defTotal:0,
+      asist:0, colocTotal:0,
+      erroresTotales:0, puntos:0
+    });
+    state.match.events.forEach(ev=>{
+      if(!ev.player) return;
+      const r = rows[ev.player];
+      if(!r) return;
+      if(ev.group==="saque"){ r.saqueTotal++; if(ev.opt==="ace"){r.saqueAce++; r.puntos++;} if(ev.opt==="error"){r.saqueError++; r.erroresTotales++;} }
+      if(ev.group==="recepcion"){ r.recCount++; r.recSum += {r3:3,r2:2,r1:1,r0:0}[ev.opt]; if(ev.opt==="r0") r.erroresTotales++; }
+      if(ev.group==="ataque"){ r.ataqueTotal++; if(ev.opt==="kill"){r.ataqueKill++; r.puntos++;} if(ev.opt==="error"){r.ataqueError++; r.erroresTotales++;} if(ev.opt==="bloqueado"){r.ataqueBloq++; r.erroresTotales++;} }
+      if(ev.group==="bloqueo"){ r.bloqTotal++; if(ev.opt==="punto"){r.bloqPunto++; r.puntos++;} if(ev.opt==="error"){r.bloqError++; r.erroresTotales++;} }
+      if(ev.group==="defensa"){ r.defTotal++; if(ev.opt==="excelente") r.defExc++; if(ev.opt==="error"){r.defError++; r.erroresTotales++;} }
+      if(ev.group==="colocacion"){ r.colocTotal++; if(ev.opt==="asistencia") r.asist++; if(ev.opt==="error"){r.erroresTotales++;} }
+    });
+    Object.values(rows).forEach(r=>{
+      r.rendimiento = r.puntos - r.erroresTotales;
+      r.totalAcciones = r.saqueTotal + r.recCount + r.ataqueTotal + r.bloqTotal + r.defTotal + r.colocTotal;
+      r.rendimientoPct = r.totalAcciones ? Math.round((r.rendimiento / r.totalAcciones) * 100) : 0;
+    });
+    return rows;
+  }
+
+  function renderStats(){
+    const rows = computePlayerStats();
+    const table = document.getElementById("statsTable");
+    let html = `<tr>
+      <th>Jugador</th><th>Pts</th><th>Saque (Ace/Err/Tot)</th><th>Recep. Prom</th>
+      <th>Ataque (K/Err/Blq)</th><th>% Ataque</th><th>Bloqueo (Pt/Err)</th><th>Defensa (Exc/Err)</th><th>Asist.</th><th>Errores Tot.</th><th>Rendimiento Total</th>
+    </tr>`;
+    let tot = {puntos:0,saqueAce:0,saqueError:0,saqueTotal:0,ataqueKill:0,ataqueError:0,ataqueBloq:0,ataqueTotal:0,bloqPunto:0,bloqError:0,defExc:0,defError:0,asist:0,erroresTotales:0,totalAcciones:0};
+    Object.values(rows).forEach(r=>{
+      const recAvg = r.recCount ? (r.recSum/r.recCount).toFixed(2) : "-";
+      const ataquePct = r.ataqueTotal ? Math.round(((r.ataqueKill - r.ataqueError - r.ataqueBloq)/r.ataqueTotal)*100)+"%" : "-";
+      const rendColor = r.rendimiento>0 ? "var(--ball-orange)" : (r.rendimiento<0 ? "var(--err-red)" : "var(--muted)");
+      html += `<tr>
+        <td>#${r.num} ${r.name}</td><td>${r.puntos}</td>
+        <td>${r.saqueAce}/${r.saqueError}/${r.saqueTotal}</td>
+        <td>${recAvg}</td>
+        <td>${r.ataqueKill}/${r.ataqueError}/${r.ataqueBloq}</td>
+        <td>${ataquePct}</td>
+        <td>${r.bloqPunto}/${r.bloqError}</td>
+        <td>${r.defExc}/${r.defError}</td>
+        <td>${r.asist}</td>
+        <td>${r.erroresTotales}</td>
+        <td style="color:${rendColor}; font-weight:800;">${r.rendimiento>0?"+":""}${r.rendimiento} (${r.rendimientoPct>0?"+":""}${r.rendimientoPct}%)</td>
+      </tr>`;
+      Object.keys(tot).forEach(k=> tot[k]+= r[k]||0);
+    });
+    tot.rendimiento = tot.puntos - tot.erroresTotales;
+    tot.rendimientoPct = tot.totalAcciones ? Math.round((tot.rendimiento/tot.totalAcciones)*100) : 0;
+    const ataquePctTot = tot.ataqueTotal ? Math.round(((tot.ataqueKill-tot.ataqueError-tot.ataqueBloq)/tot.ataqueTotal)*100)+"%" : "-";
+    html += `<tr class="total-row"><td>TOTAL EQUIPO</td><td>${tot.puntos}</td>
+      <td>${tot.saqueAce}/${tot.saqueError}/${tot.saqueTotal}</td><td>-</td>
+      <td>${tot.ataqueKill}/${tot.ataqueError}/${tot.ataqueBloq}</td><td>${ataquePctTot}</td>
+      <td>${tot.bloqPunto}/${tot.bloqError}</td><td>${tot.defExc}/${tot.defError}</td><td>${tot.asist}</td><td>${tot.erroresTotales}</td>
+      <td>${tot.rendimiento>0?"+":""}${tot.rendimiento} (${tot.rendimientoPct>0?"+":""}${tot.rendimientoPct}%)</td></tr>`;
+    table.innerHTML = html;
+
+    renderKpis(tot, ataquePctTot);
+    renderBarChart(rows);
+    renderPerformanceChart(rows);
+    renderCompareChips();
+    renderCompareTable();
+    renderDonut(tot);
+    renderStatChips();
+    renderPlayerDash();
+  }
+
+  function renderKpis(tot, ataquePctTot){
+    const grid = document.getElementById("kpiGrid");
+    grid.innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Marcador actual</div>
+        <div class="kpi-value">${state.match.scoreUs}–${state.match.scoreThem}</div>
+        <div class="kpi-sub">${state.teamName||"Nosotros"} vs ${state.rivalName||"Rival"} · Set ${state.match.setNum}</div>
+      </div>
+      <div class="kpi-card accent-b">
+        <div class="kpi-label">Sets ganados</div>
+        <div class="kpi-value">${state.match.setsUs}–${state.match.setsThem}</div>
+        <div class="kpi-sub">Nosotros vs Rival</div>
+      </div>
+      <div class="kpi-card accent-c">
+        <div class="kpi-label">Eficiencia de ataque</div>
+        <div class="kpi-value">${ataquePctTot}</div>
+        <div class="kpi-sub">(Kills − errores − bloqueados) / intentos</div>
+      </div>
+      <div class="kpi-card accent-d">
+        <div class="kpi-label">Errores no forzados</div>
+        <div class="kpi-value">${tot.erroresTotales}</div>
+        <div class="kpi-sub">Suma de todas las categorías</div>
+      </div>
+      <div class="kpi-card ${tot.rendimientoPct<0?'accent-neg':''}">
+        <div class="kpi-label">Efectividad total del equipo</div>
+        <div class="kpi-value">${tot.rendimientoPct>0?"+":""}${tot.rendimientoPct}%</div>
+        <div class="kpi-sub">(Puntos − errores) / acciones registradas</div>
+      </div>`;
+  }
+
+  function renderBarChart(rows){
+    const wrap = document.getElementById("barChartPoints");
+    const list = Object.values(rows).filter(r=>r.puntos>0).sort((a,b)=>b.puntos-a.puntos);
+    document.getElementById("barChartEmpty").style.display = list.length ? "none":"block";
+    const max = Math.max(1, ...list.map(r=>r.puntos));
+    wrap.innerHTML = list.map(r=>`
+      <div class="bar-row">
+        <div class="lbl">#${r.num} ${r.name}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(r.puntos/max*100).toFixed(0)}%"></div></div>
+        <div class="val">${r.puntos}</div>
+      </div>`).join("");
+  }
+
+  function renderPerformanceChart(rows){
+    const wrap = document.getElementById("barChartPerf");
+    const list = Object.values(rows).filter(r=> r.puntos>0 || r.erroresTotales>0).sort((a,b)=>b.rendimiento-a.rendimiento);
+    document.getElementById("barChartPerfEmpty").style.display = list.length ? "none":"block";
+    const max = Math.max(1, ...list.map(r=>Math.abs(r.rendimiento)));
+    wrap.innerHTML = list.map(r=>`
+      <div class="bar-row">
+        <div class="lbl">#${r.num} ${r.name}</div>
+        <div class="bar-track"><div class="bar-fill ${r.rendimiento<0?'neg':''}" style="width:${(Math.abs(r.rendimiento)/max*100).toFixed(0)}%"></div></div>
+        <div class="val" style="color:${r.rendimiento<0?'var(--err-red)':'var(--ball-orange)'}">${r.rendimiento>0?'+':''}${r.rendimiento} (${r.rendimientoPct>0?'+':''}${r.rendimientoPct}%)</div>
+      </div>`).join("");
+  }
+
+  function renderDonut(tot){
+    const segs = [
+      {label:"Ataque", value:tot.ataqueKill, color:"var(--ball-orange)"},
+      {label:"Bloqueo", value:tot.bloqPunto, color:"var(--ball-yellow)"},
+      {label:"Saque (Ace)", value:tot.saqueAce, color:"var(--electric)"},
+      {label:"Error rival", value:state.match.events.filter(e=>e.group==="rival").length, color:"var(--ok-green)"}
+    ];
+    const sum = segs.reduce((s,x)=>s+x.value,0);
+    const wrap = document.getElementById("donutWrap");
+    if(!sum){ wrap.innerHTML = '<p class="empty">Aún no hay puntos anotados.</p>'; return; }
+    let acc = 0;
+    const stops = segs.map(s=>{
+      const from = acc/sum*360; acc += s.value; const to = acc/sum*360;
+      return `${s.color} ${from}deg ${to}deg`;
+    }).join(", ");
+    wrap.innerHTML = `
+      <div class="donut" style="background:conic-gradient(${stops});"></div>
+      <div class="donut-legend">${segs.map(s=>`<div><span class="dot" style="background:${s.color}"></span>${s.label}: <b>${s.value}</b> (${sum?Math.round(s.value/sum*100):0}%)</div>`).join("")}</div>`;
+  }
+
+  let selectedStatPlayer = null;
+  let selectedCompare = [];
+  function renderCompareChips(){
+    const box = document.getElementById("compareChips");
+    box.innerHTML = sortedByNumber(state.players).map(p=>{
+      const on = selectedCompare.includes(p.id);
+      return `<button class="chip ${on?'selected':''}" data-id="${p.id}"><span class="n">#${p.num}</span>${p.name}</button>`;
+    }).join("") || '<p class="empty">Agrega jugadores primero.</p>';
+    box.querySelectorAll(".chip").forEach(c=>{
+      c.addEventListener("click", ()=>{
+        const id = Number(c.dataset.id);
+        if(selectedCompare.includes(id)){
+          selectedCompare = selectedCompare.filter(x=>x!==id);
+        } else {
+          if(selectedCompare.length>=3){ alert("Puedes comparar máximo 3 jugadoras a la vez. Quita una para agregar otra."); return; }
+          selectedCompare.push(id);
+        }
+        renderCompareChips(); renderCompareTable();
+      });
+    });
+  }
+
+  function renderCompareTable(){
+    const table = document.getElementById("compareTable");
+    document.getElementById("compareEmpty").style.display = selectedCompare.length>=2 ? "none" : "block";
+    if(selectedCompare.length<2){ table.innerHTML = ""; return; }
+    const rows = computePlayerStats();
+    const players = selectedCompare.map(id=> state.players.find(p=>p.id===id)).filter(Boolean);
+    const metrics = [
+      {label:"Puntos anotados", get:r=>r.puntos},
+      {label:"Errores no forzados", get:r=>r.erroresTotales},
+      {label:"Rendimiento total", get:r=>`${r.rendimiento>0?"+":""}${r.rendimiento}`},
+      {label:"Eficiencia total %", get:r=>`${r.rendimientoPct>0?"+":""}${r.rendimientoPct}%`},
+      {label:"Eficiencia de ataque %", get:r=> r.ataqueTotal? Math.round(((r.ataqueKill-r.ataqueError-r.ataqueBloq)/r.ataqueTotal)*100)+"%" : "-"},
+      {label:"Aces / Saques totales", get:r=>`${r.saqueAce}/${r.saqueTotal}`},
+      {label:"Promedio de recepción", get:r=> r.recCount? (r.recSum/r.recCount).toFixed(2) : "-"},
+      {label:"Puntos de bloqueo", get:r=>r.bloqPunto},
+      {label:"Defensas excelentes", get:r=>r.defExc},
+      {label:"Asistencias", get:r=>r.asist}
+    ];
+    let html = `<tr><th>Métrica</th>${players.map(p=>`<th>#${p.num} ${p.name}</th>`).join("")}</tr>`;
+    metrics.forEach(m=>{
+      html += `<tr><td>${m.label}</td>${players.map(p=>`<td>${m.get(rows[p.id])}</td>`).join("")}</tr>`;
+    });
+    table.innerHTML = html;
+  }
+
+  function renderStatChips(){
+    const box = document.getElementById("statChips");
+    box.innerHTML = sortedByNumber(state.players).map(p=>chipHtml(p, selectedStatPlayer)).join("") || '<p class="empty">Agrega jugadores primero.</p>';
+    box.querySelectorAll(".chip").forEach(c=> c.addEventListener("click", ()=>{
+      selectedStatPlayer = Number(c.dataset.id); renderStatChips(); renderPlayerDash();
+    }));
+  }
+
+  function renderPlayerDash(){
+    const el = document.getElementById("playerDash");
+    if(!selectedStatPlayer){ el.innerHTML = '<p class="empty">Elige un jugador arriba para ver su rendimiento.</p>'; return; }
+    const rows = computePlayerStats();
+    const r = rows[selectedStatPlayer];
+    if(!r){ el.innerHTML = ""; return; }
+    const recAvgNum = r.recCount ? (r.recSum/r.recCount) : 0;
+    const ataquePct = r.ataqueTotal ? Math.max(0,Math.round(((r.ataqueKill-r.ataqueError-r.ataqueBloq)/r.ataqueTotal)*100)) : 0;
+    const saquePct = r.saqueTotal ? Math.round((r.saqueAce/r.saqueTotal)*100) : 0;
+    const bars = [
+      {label:"Eficiencia de ataque", val:ataquePct, max:100, txt:`${ataquePct}% (${r.ataqueKill}/${r.ataqueTotal})`},
+      {label:"Aces sobre saques", val:saquePct, max:100, txt:`${saquePct}% (${r.saqueAce}/${r.saqueTotal})`},
+      {label:"Promedio de recepción", val:(recAvgNum/3*100), max:100, txt:`${recAvgNum.toFixed(2)} / 3.00`},
+      {label:"Puntos de bloqueo", val:Math.min(100,r.bloqPunto*20), max:100, txt:`${r.bloqPunto}`},
+      {label:"Defensas excelentes", val:Math.min(100,r.defExc*20), max:100, txt:`${r.defExc}`}
+    ];
+    el.innerHTML = `
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Puntos anotados</div><div class="kpi-value">${r.puntos}</div></div>
+        <div class="kpi-card accent-b"><div class="kpi-label">Errores no forzados</div><div class="kpi-value">${r.erroresTotales}</div></div>
+        <div class="kpi-card accent-c"><div class="kpi-label">Asistencias</div><div class="kpi-value">${r.asist}</div></div>
+        <div class="kpi-card ${r.rendimiento<0?'accent-neg':'accent-d'}"><div class="kpi-label">Rendimiento total</div><div class="kpi-value">${r.rendimiento>0?'+':''}${r.rendimiento}</div><div class="kpi-sub">Puntos − errores</div></div>
+        <div class="kpi-card ${r.rendimientoPct<0?'accent-neg':''}"><div class="kpi-label">Eficiencia total</div><div class="kpi-value">${r.rendimientoPct>0?'+':''}${r.rendimientoPct}%</div><div class="kpi-sub">Sobre ${r.totalAcciones} acciones registradas</div></div>
+      </div>
+      <div class="card">
+        <h2>#${r.num} ${r.name} — rendimiento por fundamento</h2>
+        ${bars.map(b=>`
+          <div class="bar-row stacked">
+            <div class="lbl">${b.label}</div>
+            <div class="bar-line"><div class="bar-track"><div class="bar-fill alt" style="width:${Math.max(2,b.val)}%"></div></div><div class="val">${b.txt}</div></div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  document.querySelectorAll(".subtabs button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".subtabs button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      ["equipo","jugador","comparar","tabla"].forEach(k=>{
+        document.getElementById("statPanel-"+k).style.display = (k===btn.dataset.stat) ? "block":"none";
+      });
+    });
+  });
+
+  function renderHistorialTab(){
+    const head = document.getElementById("historialHeader");
+    head.innerHTML = `<div class="hist-head">
+      ${state.teamCrest?`<img class="crest-badge" src="${state.teamCrest}">`:""}
+      <div class="hist-team">${state.teamName||"NOSOTROS"}</div>
+      <div class="hist-score">${state.match.setsUs} — ${state.match.setsThem}</div>
+      <div class="hist-team">${state.rivalName||"RIVAL"}</div>
+      ${state.rivalCrest?`<img class="crest-badge" src="${state.rivalCrest}">`:""}
+    </div>`;
+
+    const box = document.getElementById("historialSets");
+    const setNums = [...new Set(state.match.setHistory.map(s=>s.setNum).concat([state.match.setNum]))];
+    box.innerHTML = setNums.map(setNum=>{
+      const finished = state.match.setHistory.find(s=>s.setNum===setNum);
+      const isLive = setNum===state.match.setNum && !finished;
+      const finalUs = finished ? finished.us : state.match.scoreUs;
+      const finalThem = finished ? finished.them : state.match.scoreThem;
+      const plays = state.match.pointLog.filter(p=>p.setNum===setNum);
+      const usCols = plays.map(p=> p.team==="us" ? `<div class="hist-chip us">${p.usScore}</div>` : `<div class="hist-chip empty"></div>`).join("");
+      const themCols = plays.map(p=> p.team==="them" ? `<div class="hist-chip them">${p.themScore}</div>` : `<div class="hist-chip empty"></div>`).join("");
+      return `<div class="card">
+        <div class="hist-set-title">Set ${setNum} ${isLive?"· en curso":""}</div>
+        <div class="hist-row"><div class="hist-big us">${finalUs}</div><div class="hist-scroll">${usCols||'<span class="hint">Sin puntos aún.</span>'}</div></div>
+        <div class="hist-row"><div class="hist-big them">${finalThem}</div><div class="hist-scroll">${themCols||'<span class="hint">Sin puntos aún.</span>'}</div></div>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------- ROTACIÓN ----------
+  function playerName(id){
+    const p = state.players.find(x=>x.id===id);
+    return p ? `#${p.num} ${p.name}` : "—";
+  }
+
+  function renderRotationView(){
+    if(!state.rotation.locked){
+      document.getElementById("setupCard").style.display = "block";
+      document.getElementById("rotationLive").style.display = "none";
+      document.getElementById("setupSetNum").textContent = state.match.setNum;
+      renderSetupGrid();
+    } else {
+      document.getElementById("setupCard").style.display = "none";
+      document.getElementById("rotationLive").style.display = "block";
+      renderCourtGrid();
+      renderSubsLog();
+    }
+  }
+
+  function renderSetupGrid(){
+    const grid = document.getElementById("setupGrid");
+    const used = state.rotation.lineup.filter(x=>x!==null);
+    grid.innerHTML = CELL_ORDER.map(idx=>{
+      const pid = state.rotation.lineup[idx];
+      const p = state.players.find(x=>x.id===pid);
+      return `<div class="pos-cell" data-idx="${idx}">
+        <div class="tag">${POS_LABELS[idx].split(" ")[0]}</div>
+        ${p? `<div class="who">#${p.num} ${p.name}</div>` : '<div class="empty-slot">Toca para asignar</div>'}
+      </div>`;
+    }).join("");
+    grid.querySelectorAll(".pos-cell").forEach(cell=>{
+      cell.addEventListener("click", ()=>{
+        const idx = Number(cell.dataset.idx);
+        const available = state.players.filter(p=> !state.rotation.lineup.includes(p.id));
+        if(!available.length && state.rotation.lineup[idx]===null){ alert("No quedan jugadores disponibles en el roster."); return; }
+        openPicker(cell, available.concat(state.rotation.lineup[idx]?[]: []), (chosenId)=>{
+          state.rotation.lineup[idx] = chosenId;
+          renderSetupGrid();
+        }, state.rotation.lineup[idx]);
+      });
+    });
+    const allSet = state.rotation.lineup.every(x=>x!==null);
+    document.getElementById("btnConfirmLineup").disabled = !allSet;
+    document.getElementById("setupHint").textContent = allSet ? "Formación completa. Confirma para iniciar el set." : "Faltan posiciones por asignar.";
+  }
+
+  function openPicker(anchorEl, candidates, onPick, currentId){
+    document.querySelectorAll(".picker-pop").forEach(x=>x.remove());
+    const pop = document.createElement("div");
+    pop.className = "picker-pop";
+    pop.style.cssText = "position:relative; z-index:20; background:var(--panel-2); border:1px solid var(--border-hi); border-radius:10px; padding:8px; margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;";
+    const list = candidates.length ? candidates : state.players;
+    list.forEach(p=>{
+      if(!p) return;
+      const b = document.createElement("button");
+      b.className = "btn small" + (p.id===currentId?" primary":"");
+      b.textContent = `#${p.num} ${p.name}`;
+      b.addEventListener("click", (e)=>{ e.stopPropagation(); onPick(p.id); pop.remove(); });
+      pop.appendChild(b);
+    });
+    if(!list.length){
+      const span = document.createElement("span"); span.className="hint"; span.textContent="No hay jugadores disponibles.";
+      pop.appendChild(span);
+    }
+    anchorEl.appendChild(pop);
+  }
+
+  document.getElementById("btnConfirmLineup").addEventListener("click", ()=>{
+    if(state.rotation.lineup.some(x=>x===null)) return;
+    state.rotation.locked = true;
+    state.rotation.lineup.forEach(pid=>{ state.rotation.starterState[pid] = {exited:false, reentered:false}; });
+    renderRotationView();
+  });
+
+  document.getElementById("btnEditLineup").addEventListener("click", ()=>{
+    if(!confirm("Esto arma una nueva formación inicial (normalmente al empezar un set nuevo). ¿Continuar?")) return;
+    state.rotation = newRotationState();
+    renderRotationView();
+  });
+
+  function renderCourtGrid(){
+    const grid = document.getElementById("courtGrid");
+    document.getElementById("subsUsed").textContent = state.rotation.subsCountThisSet;
+    grid.innerHTML = CELL_ORDER.map(idx=>{
+      const pid = state.rotation.lineup[idx];
+      const p = state.players.find(x=>x.id===pid);
+      const isBack = BACK_ROW_IDX.includes(idx);
+      const lib = state.rotation.liberoOnCourt;
+      const isLiberoHere = lib && lib.positionIndex===idx;
+      const isServer = idx===0 && state.match.servingTeam==="us";
+      return `<div class="pos-cell ${idx===selectedCourtPos?'selected':''} ${isLiberoHere?'is-libero':''} ${isServer?'is-server':''}" data-idx="${idx}">
+        <div class="tag">${POS_LABELS[idx].split(" ")[0]} ${isBack?'· zaguero':'· delantero'}${isServer?' · <b style="color:var(--ball-orange);">SACA</b>':''}</div>
+        <div class="who">${p? `#${p.num} ${p.name}` : '—'}</div>
+        ${isBack ? `<button class="btn small libero-btn" data-libero-idx="${idx}">${isLiberoHere?'Sacar líbero':'Entrar líbero'}</button>` : ""}
+      </div>`;
+    }).join("");
+    grid.querySelectorAll(".pos-cell").forEach(cell=>{
+      cell.addEventListener("click", (e)=>{
+        if(e.target.closest(".libero-btn")) return;
+        selectedCourtPos = Number(cell.dataset.idx);
+        renderCourtGrid(); renderBenchPanel();
+      });
+    });
+    grid.querySelectorAll(".libero-btn").forEach(btn=>{
+      btn.addEventListener("click", (e)=>{ e.stopPropagation(); toggleLibero(Number(btn.dataset.liberoIdx)); });
+    });
+    renderBenchPanel();
+  }
+
+  function renderBenchPanel(){
+    const box = document.getElementById("benchPanel");
+    if(selectedCourtPos===null){ box.innerHTML = ""; return; }
+    const onCourt = state.rotation.lineup;
+    const bench = state.players.filter(p=> !onCourt.includes(p.id) && !p.isLibero);
+    box.className = "bench-panel";
+    box.innerHTML = `<h3>Banca — sustituir en ${POS_LABELS[selectedCourtPos]}</h3>
+      <div class="player-chips" id="benchChips"></div>
+      ${!bench.length ? '<p class="empty">No hay jugadores disponibles en la banca.</p>' : ''}`;
+    const chipsBox = document.getElementById("benchChips");
+    bench.forEach(p=>{
+      const b = document.createElement("button");
+      b.className = "chip"; b.innerHTML = `<span class="n">#${p.num}</span>${p.name}`;
+      b.addEventListener("click", ()=> trySubstitute(selectedCourtPos, p.id));
+      chipsBox.appendChild(b);
+    });
+  }
+
+  function trySubstitute(posIndex, incomingId){
+    const rot = state.rotation;
+    const outgoingId = rot.lineup[posIndex];
+    if(rot.subsCountThisSet>=6){ alert("Límite de 6 sustituciones alcanzado en este set (regla 15.1)."); return; }
+    const outgoingIsStarter = rot.starterState.hasOwnProperty(outgoingId);
+
+    if(outgoingIsStarter){
+      if(rot.starterState[outgoingId].exited){ alert(playerName(outgoingId)+" ya salió una vez en este set y no puede volver a salir (regla 15.6.1)."); return; }
+      if(rot.subState[incomingId] && rot.subState[incomingId].entered){ alert(playerName(incomingId)+" ya entró antes en este set y no puede volver a entrar (regla 15.6.2)."); return; }
+      rot.starterState[outgoingId].exited = true;
+      rot.subState[incomingId] = {entered:true, pairedStarter:outgoingId};
+    } else {
+      const pairedStarter = rot.subState[outgoingId] ? rot.subState[outgoingId].pairedStarter : null;
+      if(!pairedStarter){ alert("No se puede validar este cambio."); return; }
+      if(incomingId!==pairedStarter){ alert(playerName(outgoingId)+" solo puede ser reemplazado por "+playerName(pairedStarter)+" (regla 15.6.2)."); return; }
+      if(rot.starterState[pairedStarter].reentered){ alert(playerName(pairedStarter)+" ya reingresó una vez y no puede volver a entrar (regla 15.6.1)."); return; }
+      rot.starterState[pairedStarter].reentered = true;
+    }
+    rot.lineup[posIndex] = incomingId;
+    rot.subsCountThisSet++;
+    rot.log.push({type:"sub", text:`Set ${state.match.setNum} · ${POS_LABELS[posIndex]}: sale ${playerName(outgoingId)}, entra ${playerName(incomingId)}`, ts:Date.now()});
+    selectedCourtPos = null;
+    renderCourtGrid(); renderSubsLog();
+  }
+
+  function toggleLibero(posIndex){
+    const rot = state.rotation;
+    const lib = rot.liberoOnCourt;
+    if(lib && lib.positionIndex===posIndex){
+      rot.lineup[posIndex] = lib.replacedPlayerId;
+      rot.log.push({type:"libero", text:`Set ${state.match.setNum} · Sale líbero ${playerName(lib.liberoId)}, vuelve ${playerName(lib.replacedPlayerId)}`, ts:Date.now()});
+      rot.liberoOnCourt = null;
+      renderCourtGrid(); renderSubsLog();
+      return;
+    }
+    if(lib){ alert("Ya hay un líbero en cancha. Sácalo antes de meter otro."); return; }
+    const liberos = state.players.filter(p=>p.isLibero);
+    if(!liberos.length){ alert("Marca al menos un jugador como Líbero en la pestaña Equipo primero."); return; }
+    const cell = document.querySelector(`.pos-cell[data-idx="${posIndex}"]`);
+    openPicker(cell, liberos, (liberoId)=>{
+      const replacedPlayerId = rot.lineup[posIndex];
+      rot.lineup[posIndex] = liberoId;
+      rot.liberoOnCourt = {liberoId, replacedPlayerId, positionIndex:posIndex};
+      rot.log.push({type:"libero", text:`Set ${state.match.setNum} · Entra líbero ${playerName(liberoId)} por ${playerName(replacedPlayerId)}`, ts:Date.now()});
+      renderCourtGrid(); renderSubsLog();
+    });
+  }
+
+  function renderSubsLog(){
+    const box = document.getElementById("subsLogBox");
+    if(!state.rotation.log.length){ box.innerHTML = '<div class="empty">Sin cambios todavía en este set.</div>'; return; }
+    box.innerHTML = state.rotation.log.slice().reverse().map(l=>`<div>[${new Date(l.ts).toLocaleTimeString()}] ${l.text}</div>`).join("");
+  }
+
+  // ---------- EXPORT / IMPORT ----------
+  function download(filename, content, type){
+    const blob = new Blob([content], {type});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("btnExportTeam").addEventListener("click", ()=>{
+    const data = { teamName:state.teamName, teamCrest:state.teamCrest, players:state.players };
+    download(`equipo_${(state.teamName||"equipo").replace(/\s+/g,'_')}_${Date.now()}.json`, JSON.stringify(data,null,2), "application/json");
+  });
+  document.getElementById("importTeam").addEventListener("change", (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(!Array.isArray(data.players)) throw new Error("formato inválido");
+        state.teamName = data.teamName||""; state.teamCrest = data.teamCrest||null;
+        state.players = data.players;
+        nextPlayerId = Math.max(1,...state.players.map(p=>(p.id||0)+1),1);
+        document.getElementById("teamName").value = state.teamName;
+        document.getElementById("lblUs").textContent = (state.teamName||"NOSOTROS").toUpperCase();
+        renderRoster(); renderChips(); renderCrests();
+        alert("Equipo cargado correctamente.");
+      }catch(err){ alert("El archivo no es un equipo válido de VoleyStats."); }
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById("btnExportJson").addEventListener("click", ()=>{
+    const data = { teamName:state.teamName, rivalName:state.rivalName, teamCrest:state.teamCrest, rivalCrest:state.rivalCrest, players:state.players, match:state.match, rotation:state.rotation, video:{events:state.video.events} };
+    download(`voleystats_${(state.teamName||"equipo").replace(/\s+/g,'_')}_${Date.now()}.json`, JSON.stringify(data,null,2), "application/json");
+  });
+
+  document.getElementById("importJson").addEventListener("change", (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        state.teamName = data.teamName||""; state.rivalName = data.rivalName||"";
+        state.teamCrest = data.teamCrest||null; state.rivalCrest = data.rivalCrest||null;
+        state.players = data.players||[];
+        nextPlayerId = Math.max(1,...state.players.map(p=>p.id+1||1),1);
+        state.match = Object.assign({scoreUs:0,scoreThem:0,setNum:1,setsUs:0,setsThem:0,servingTeam:"us",events:[],history:[],config:{totalSets:3,pointsPerSet:25},setHistory:[],pointLog:[],finished:false}, data.match||{});
+        state.rotation = Object.assign(newRotationState(), data.rotation||{});
+        state.video.events = (data.video && data.video.events) || [];
+        document.getElementById("teamName").value = state.teamName;
+        document.getElementById("rivalName").value = state.rivalName;
+        document.getElementById("lblUs").textContent = (state.teamName||"NOSOTROS").toUpperCase();
+        document.getElementById("lblThem").textContent = (state.rivalName||"RIVAL").toUpperCase();
+        renderRoster(); renderChips(); renderScoreboard(); renderEventLog(); renderVideoLog(); renderStats(); renderCrests(); renderSetHistory();
+        document.getElementById("cfgTotalSets").value = state.match.config.totalSets;
+        document.getElementById("cfgPointsPerSet").value = state.match.config.pointsPerSet;
+        document.getElementById("cfgServer").value = state.match.servingTeam;
+        if(document.getElementById("view-rotacion").classList.contains("active")) renderRotationView();
+        alert("Partido cargado correctamente.");
+      }catch(err){ alert("El archivo no es un partido válido de VoleyStats."); }
+    };
+    reader.readAsText(f);
+  });
+
+  document.getElementById("btnExportCsv").addEventListener("click", ()=>{
+    const rows = computePlayerStats();
+    let csv = "Jugador,Puntos,Ace,ErrorSaque,TotalSaque,PromRecepcion,Kill,ErrorAtaque,Bloqueado,BloqueoPunto,BloqueoError,DefensaExc,DefensaError,Asistencias,ErroresTotales,RendimientoTotal,RendimientoPct\n";
+    Object.values(rows).forEach(r=>{
+      const recAvg = r.recCount ? (r.recSum/r.recCount).toFixed(2) : "";
+      csv += [`"${r.name}"`, r.puntos, r.saqueAce, r.saqueError, r.saqueTotal, recAvg, r.ataqueKill, r.ataqueError, r.ataqueBloq, r.bloqPunto, r.bloqError, r.defExc, r.defError, r.asist, r.erroresTotales, r.rendimiento, r.rendimientoPct].join(",")+"\n";
+    });
+    download(`voleystats_estadisticas_${Date.now()}.csv`, csv, "text/csv");
+  });
+
+  // ---------- INIT ----------
+  renderRoster(); renderChips(); renderScoreboard(); renderEventLog(); renderVideoLog(); renderCrests(); renderSetHistory(); renderSavedTeams();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
