@@ -2,7 +2,7 @@
   "name": "VoleyStats",
   "short_name": "VoleyStats",
   "description": "Estadísticas de voleibol en vivo y por video, 100% local y gratis",
-  "start_url": "./index.html",
+  "start_url": "./index.html", 
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
