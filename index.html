@@ -1198,7 +1198,7 @@
       ataqueKill:0, ataqueError:0, ataqueBloq:0, ataqueTotal:0,
       bloqPunto:0, bloqError:0, bloqTotal:0,
       defExc:0, defError:0, defTotal:0,
-      asist:0, colocTotal:0,
+      asist:0, colocTotal:0, recBuenas:0,
       erroresTotales:0, puntos:0
     });
     state.match.events.forEach(ev=>{
@@ -1206,7 +1206,7 @@
       const r = rows[ev.player];
       if(!r) return;
       if(ev.group==="saque"){ r.saqueTotal++; if(ev.opt==="ace"){r.saqueAce++; r.puntos++;} if(ev.opt==="error"){r.saqueError++; r.erroresTotales++;} }
-      if(ev.group==="recepcion"){ r.recCount++; r.recSum += {r3:3,r2:2,r1:1,r0:0}[ev.opt]; if(ev.opt==="r0") r.erroresTotales++; }
+      if(ev.group==="recepcion"){ r.recCount++; r.recSum += {r3:3,r2:2,r1:1,r0:0}[ev.opt]; if(ev.opt==="r3"||ev.opt==="r2") r.recBuenas++; if(ev.opt==="r0") r.erroresTotales++; }
       if(ev.group==="ataque"){ r.ataqueTotal++; if(ev.opt==="kill"){r.ataqueKill++; r.puntos++;} if(ev.opt==="error"){r.ataqueError++; r.erroresTotales++;} if(ev.opt==="bloqueado"){r.ataqueBloq++; r.erroresTotales++;} }
       if(ev.group==="bloqueo"){ r.bloqTotal++; if(ev.opt==="punto"){r.bloqPunto++; r.puntos++;} if(ev.opt==="error"){r.bloqError++; r.erroresTotales++;} }
       if(ev.group==="defensa"){ r.defTotal++; if(ev.opt==="excelente") r.defExc++; if(ev.opt==="error"){r.defError++; r.erroresTotales++;} }
@@ -1215,7 +1215,12 @@
     Object.values(rows).forEach(r=>{
       r.rendimiento = r.puntos - r.erroresTotales;
       r.totalAcciones = r.saqueTotal + r.recCount + r.ataqueTotal + r.bloqTotal + r.defTotal + r.colocTotal;
-      r.rendimientoPct = r.totalAcciones ? Math.round((r.rendimiento / r.totalAcciones) * 100) : 0;
+      // Acciones positivas: puntos + recepciones buenas/perfectas + defensas excelentes + asistencias
+      r.positivas = r.saqueAce + r.ataqueKill + r.bloqPunto + r.recBuenas + r.defExc + r.asist;
+      // Solo cuentan las acciones evaluables (positivas y errores); las neutras (saque en juego,
+      // recepcion regular, toque de bloqueo) no suman ni restan, y no tener oportunidad no penaliza.
+      r.evaluables = r.positivas + r.erroresTotales;
+      r.rendimientoPct = r.evaluables ? Math.round(((r.positivas - r.erroresTotales) / r.evaluables) * 100) : 0;
     });
     return rows;
   }
@@ -1227,7 +1232,7 @@
       <th>Jugador</th><th>Pts</th><th>Saque (Ace/Err/Tot)</th><th>Recep. Prom</th>
       <th>Ataque (K/Err/Blq)</th><th>% Ataque</th><th>Bloqueo (Pt/Err)</th><th>Defensa (Exc/Err)</th><th>Asist.</th><th>Errores Tot.</th><th>Rendimiento Total</th>
     </tr>`;
-    let tot = {puntos:0,saqueAce:0,saqueError:0,saqueTotal:0,ataqueKill:0,ataqueError:0,ataqueBloq:0,ataqueTotal:0,bloqPunto:0,bloqError:0,defExc:0,defError:0,asist:0,erroresTotales:0,totalAcciones:0};
+    let tot = {puntos:0,saqueAce:0,saqueError:0,saqueTotal:0,ataqueKill:0,ataqueError:0,ataqueBloq:0,ataqueTotal:0,bloqPunto:0,bloqError:0,defExc:0,defError:0,asist:0,erroresTotales:0,totalAcciones:0,recBuenas:0};
     Object.values(rows).forEach(r=>{
       const recAvg = r.recCount ? (r.recSum/r.recCount).toFixed(2) : "-";
       const ataquePct = r.ataqueTotal ? Math.round(((r.ataqueKill - r.ataqueError - r.ataqueBloq)/r.ataqueTotal)*100)+"%" : "-";
@@ -1247,7 +1252,9 @@
       Object.keys(tot).forEach(k=> tot[k]+= r[k]||0);
     });
     tot.rendimiento = tot.puntos - tot.erroresTotales;
-    tot.rendimientoPct = tot.totalAcciones ? Math.round((tot.rendimiento/tot.totalAcciones)*100) : 0;
+    tot.positivas = tot.saqueAce + tot.ataqueKill + tot.bloqPunto + tot.recBuenas + tot.defExc + tot.asist;
+    tot.evaluables = tot.positivas + tot.erroresTotales;
+    tot.rendimientoPct = tot.evaluables ? Math.round(((tot.positivas - tot.erroresTotales)/tot.evaluables)*100) : 0;
     const ataquePctTot = tot.ataqueTotal ? Math.round(((tot.ataqueKill-tot.ataqueError-tot.ataqueBloq)/tot.ataqueTotal)*100)+"%" : "-";
     html += `<tr class="total-row"><td>TOTAL EQUIPO</td><td>${tot.puntos}</td>
       <td>${tot.saqueAce}/${tot.saqueError}/${tot.saqueTotal}</td><td>-</td>
@@ -1292,7 +1299,7 @@
       <div class="kpi-card ${tot.rendimientoPct<0?'accent-neg':''}">
         <div class="kpi-label">Efectividad total del equipo</div>
         <div class="kpi-value">${tot.rendimientoPct>0?"+":""}${tot.rendimientoPct}%</div>
-        <div class="kpi-sub">(Puntos − errores) / acciones registradas</div>
+        <div class="kpi-sub">(Acciones positivas − errores) / acciones evaluadas</div>
       </div>`;
   }
 
@@ -1406,12 +1413,13 @@
     const recAvgNum = r.recCount ? (r.recSum/r.recCount) : 0;
     const ataquePct = r.ataqueTotal ? Math.max(0,Math.round(((r.ataqueKill-r.ataqueError-r.ataqueBloq)/r.ataqueTotal)*100)) : 0;
     const saquePct = r.saqueTotal ? Math.round((r.saqueAce/r.saqueTotal)*100) : 0;
+    // Fundamentos sin oportunidades no muestran barra vacía: se marcan como "Sin oportunidades"
     const bars = [
-      {label:"Eficiencia de ataque", val:ataquePct, max:100, txt:`${ataquePct}% (${r.ataqueKill}/${r.ataqueTotal})`},
-      {label:"Aces sobre saques", val:saquePct, max:100, txt:`${saquePct}% (${r.saqueAce}/${r.saqueTotal})`},
-      {label:"Promedio de recepción", val:(recAvgNum/3*100), max:100, txt:`${recAvgNum.toFixed(2)} / 3.00`},
-      {label:"Puntos de bloqueo", val:Math.min(100,r.bloqPunto*20), max:100, txt:`${r.bloqPunto}`},
-      {label:"Defensas excelentes", val:Math.min(100,r.defExc*20), max:100, txt:`${r.defExc}`}
+      {label:"Eficiencia de ataque", had:r.ataqueTotal>0, val:ataquePct, txt:`${ataquePct}% (${r.ataqueKill}/${r.ataqueTotal})`},
+      {label:"Aces sobre saques", had:r.saqueTotal>0, val:saquePct, txt:`${saquePct}% (${r.saqueAce}/${r.saqueTotal})`},
+      {label:"Promedio de recepción", had:r.recCount>0, val:(recAvgNum/3*100), txt:`${recAvgNum.toFixed(2)} / 3.00`},
+      {label:"Puntos de bloqueo", had:r.bloqTotal>0, val:Math.min(100,r.bloqPunto*20), txt:`${r.bloqPunto}`},
+      {label:"Defensas excelentes", had:r.defTotal>0, val:Math.min(100,r.defExc*20), txt:`${r.defExc}`}
     ];
     el.innerHTML = `
       <div class="kpi-grid">
@@ -1419,14 +1427,18 @@
         <div class="kpi-card accent-b"><div class="kpi-label">Errores no forzados</div><div class="kpi-value">${r.erroresTotales}</div></div>
         <div class="kpi-card accent-c"><div class="kpi-label">Asistencias</div><div class="kpi-value">${r.asist}</div></div>
         <div class="kpi-card ${r.rendimiento<0?'accent-neg':'accent-d'}"><div class="kpi-label">Rendimiento total</div><div class="kpi-value">${r.rendimiento>0?'+':''}${r.rendimiento}</div><div class="kpi-sub">Puntos − errores</div></div>
-        <div class="kpi-card ${r.rendimientoPct<0?'accent-neg':''}"><div class="kpi-label">Eficiencia total</div><div class="kpi-value">${r.rendimientoPct>0?'+':''}${r.rendimientoPct}%</div><div class="kpi-sub">Sobre ${r.totalAcciones} acciones registradas</div></div>
+        <div class="kpi-card ${r.rendimientoPct<0?'accent-neg':''}"><div class="kpi-label">Eficiencia total</div><div class="kpi-value">${r.rendimientoPct>0?'+':''}${r.rendimientoPct}%</div><div class="kpi-sub">Sobre ${r.evaluables} acciones evaluadas (positivas y errores)</div></div>
       </div>
       <div class="card">
         <h2>#${r.num} ${r.name} — rendimiento por fundamento</h2>
-        ${bars.map(b=>`
+        ${bars.map(b=> b.had ? `
           <div class="bar-row stacked">
             <div class="lbl">${b.label}</div>
             <div class="bar-line"><div class="bar-track"><div class="bar-fill alt" style="width:${Math.max(2,b.val)}%"></div></div><div class="val">${b.txt}</div></div>
+          </div>` : `
+          <div class="bar-row stacked">
+            <div class="lbl">${b.label}</div>
+            <div class="bar-line"><span class="hint" style="margin:0;">Sin oportunidades en este partido — no afecta su eficiencia.</span></div>
           </div>`).join("")}
       </div>`;
   }
